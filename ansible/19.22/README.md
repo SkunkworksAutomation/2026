@@ -11,3 +11,5 @@
 | [policy-sql.yaml](./policy-sql.yaml) | Create a protection policy and rule for Microsoft SQL server | `Policy`, `Microsoft SQL`, `Windows` |
 | [policy-vms.yaml](./policy-vms.yaml) | Create a protection policy and rule for vmware virtual machines | `Policy`, `vmware`, `assets` |
 | [policy-wfs.yaml](./policy-wfs.yaml) | Create a protection policy and rule for Windows file system | `Policy`, `File System`, `Windows` |
+| [proxy-deployment.yaml](./proxy-deployment.yaml) | Deploy a VADP proxy to vmware vcenter | `Proxy`, `vmware`, `VADP` |
+| [search-deployment.yaml](./search-deployment.yaml) | Deploy a search engine to vmware vcenter | `Search`, `vmware`, `engine` |
