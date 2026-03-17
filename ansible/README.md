@@ -1,1 +1,0 @@
-# PowerProtect Data Manager 19.22
