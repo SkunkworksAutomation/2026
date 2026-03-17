@@ -1,0 +1,21 @@
+---
+- name: Demo Join Microsoft Active Directory Domain
+  hosts:  "{{ ansible_play_batch }}"
+  collections:
+    - microsoft.ad
+  gather_facts: false
+  become: no
+
+  vars:
+  vars_files:
+    - vars/environment.yaml
+    - vars/vault.yaml
+
+  tasks:
+  - name: Join Microsoft Active Directory
+    microsoft.ad.membership:
+      dns_domain_name: "{{ domain }}"
+      domain_admin_user: "{{ adAdmin }}"
+      domain_admin_password: "{{ adPassword }}"
+      state: domain
+      reboot: true

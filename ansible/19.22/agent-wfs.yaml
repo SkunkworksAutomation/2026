@@ -1,0 +1,46 @@
+---
+- name: Deploy File System agents for windows
+  hosts: "{{ ansible_play_batch }}"
+  collections:
+    - ansible.windows
+    - community.general
+  gather_facts: false
+  become: no
+
+  vars:
+    anMsgTitle: "( Ansible : v2.6 )"
+    anMsgContent:
+      - "set_fact content"
+      - "Copying agent {{dmAgentWfs}} to the windows hosts"
+      - "Install the agent"
+      - "Clean up the agent binary and installer directory"
+  vars_files:
+    - vars/environment.yaml
+
+  tasks:  
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      osPath: "C:\\Windows\\Temp"
+
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[1] }}"
+    win_copy:
+      src: "{{dmAgents}}/{{dmAgentWfs}}"
+      dest: "{{osPath}}\\"
+    register: push
+  
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[2] }}"
+    win_command: "{{osPath}}\\{{dmAgentWfs}}  {{params}}"
+    vars:
+      switches:
+        - /s
+        - PPDMHostName={{ dmHost }}
+        - EnableScriptRequests=1
+        - InstallPPDMAgent=1
+      params: "{{ switches | join(' ') }}"
+    register: install
+  
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[3] }}"
+    win_file:
+      path: "{{osPath}}\\{{dmAgentWfs}}"
+      state: absent
+    register: clean

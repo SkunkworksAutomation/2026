@@ -1,0 +1,50 @@
+---
+- name: Deploy Microsoft SQL agents for windows
+  hosts: "{{ ansible_play_batch }}"
+  collections:
+    - ansible.windows
+  gather_facts: false
+  become: no
+
+  vars:
+    anMsgTitle: "( Ansible : v2.6 )"
+    anMsgContent:
+      - "set_fact content"
+      - "Copying agent {{ dmAgentSql }} to the SQL hosts"
+      - "Install the agent"
+      - "Clean up the agent binary and installer directory"
+  vars_files:
+    - vars/environment.yaml
+
+  tasks:
+    # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      osPath: "C:\\Windows\\Temp"
+
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[1] }}"
+    win_copy:
+      src: "{{ dmAgents }}/{{ dmAgentSql }}"
+      dest: "{{osPath}}\\"
+    register: push
+  
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[2] }}"
+    win_command: "{{osPath}}\\{{ dmAgentSql }} {{ params }}"  
+    vars:
+      switches:
+        - -silent
+        - -log "{{osPath}}\\{{ dmAgentSql }}_install.log"
+        - InstallPPDMAgentCheckBox=1
+        - InstallPPDMAgent=1
+        - PPDMHostname="{{dmHost}}"
+        - EnableSSMS=1
+        - EnableCLR=1
+        - EnableScriptRequests=1
+      params: "{{ switches | join(' ') }}"
+    register: install
+  
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[3] }}"
+    win_file:
+      path: "{{osPath}}\\{{ dmAgentSql }}"
+      state: absent
+    register: clean

@@ -1,0 +1,173 @@
+---
+- name: "Demo search node deployment"
+  hosts: localhost
+  collections:
+    - community.general
+  gather_facts: false
+
+  # Playbook variables
+  vars:
+    anMsgTitle: "( Ansible : v2.6 )"
+    anMsgContent:
+      - "set_fact content"
+    dmMsgTitle: "( {{dmHost}} : v{{dmVersion}} )"
+    dmMsgContent:
+      - "Wait for HTTPS connectivity on port {{dmPort}}"
+      - "Login to Data Manager REST API"
+      - "Query for the search node"
+      - "Query for the esx hosts"
+      - "Query for the datastores"
+      - "Deploy the search node"
+      - "Logout out of the Data Manager REST API"
+  vars_files:
+    - vars/vault.yaml
+    - vars/environment.yaml
+
+  tasks:
+  # Check for connectivity
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[0] }}"
+    wait_for:
+      host: "{{dmHost}}"
+      port: "{{dmPort}}"
+      state: started
+      delay: 1
+      sleep: 60
+      timeout: 600
+  
+  # Authenticate to the REST API
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[1] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      method: POST
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      body:
+        username: "{{dmUser}}"
+        password: "{{dmPassword}}"
+      status_code: 200
+    vars:
+      endpoint: login
+      version: 2
+    register: token
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      apiToken: "{{ token.json.access_token }}"
+
+  # START THE WORKFLOW
+  # REST API query
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[2] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: GET
+      validate_certs: no
+      return_content: yes
+      body_format: json
+    vars:
+      endpoint: search-clusters
+      version: 2
+    register: searchNodes
+  
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      search: "{{ searchNodes.json.content[0] }}"
+
+  # REST API query
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[3] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}?filter={{filter}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: GET
+      validate_certs: no
+      return_content: yes
+      body_format: json
+    vars:
+      endpoint: hosts
+      version: 2
+      filters: 
+        - type eq "ESX_HOST"
+      filter: "{{ filters | join(' ') | urlencode() }}"
+    register: esxHosts
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      esxiHost: "{{ esxHosts.json.content[0] }}"
+
+  # REST API query
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[4] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: GET
+      validate_certs: no
+      return_content: yes
+      body_format: json
+    vars:
+      endpoint: vcenter/{{sId}}/data-stores/{{moref}}
+      version: 2
+      sId: "{{ esxiHost.inventorySourceId }}"
+      moref: "{{ esxiHost.details.esxHost.hostMoref }}"
+    register: datastores
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      datastore: "{{ datastores.json.datastores[0] }}"
+
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[5] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: POST
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      body:
+        hostName: "{{ dmSearch }}"
+        inventorySourceId: "{{ esxiHost.inventorySourceId }}"
+        deploymentConfig:
+          fqdn: "{{ dmSearch }}"
+          ipAddress: "{{ dmSearchIp }}"
+          netMask: "{{ dmNetmask }}"
+          gateway: "{{ dmGateway }}"
+          dns: "{{ dmDns }}"
+          networkMoref: "{{ esxiHost.details.esxHost.networks[0].moref }}"
+          ipProtocol: IPv4
+          location:
+            datastoreMoref: "{{ datastore.moref | split(':') | last }}"
+            hostMoref: "{{ esxiHost.details.esxHost.hostMoref  | split(':') | last }}"
+          additionalVMNetworks: []
+      status_code: 202 
+    vars:
+      endpoint: search-clusters/{{search.id}}/nodes
+      version: 2
+  # END THE WORKFLOW
+
+  # Log out of the REST API
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[-1] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: POST
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      status_code: 204
+    vars:
+      endpoint: logout
+      version: 2

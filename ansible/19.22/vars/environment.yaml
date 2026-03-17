@@ -1,0 +1,39 @@
+# Environment
+# Valid environments 1,2
+evt: 1
+
+# Active Directory Domain for name resolution
+domain: vcorp.local
+
+# PowerProtect Data Manager Core
+dmHost: dm-0{{evt}}.{{domain}}
+dmPort: 8443
+dmBaseUrl: "https://{{dmHost}}:{{dmPort}}/api"
+dmVersion: 19.22.0.24
+dmNetmask: 255.255.252.0
+dmGateway: 192.168.1.250
+dmDns: 192.168.1.11
+
+# PowerProtect Data Manager Components
+# VADP proxies
+dmProxy: dm-0{{evt}}-proxy.{{domain}}
+dmProxyIp: 192.168.3.9{{evt}}
+
+# Search nodes
+dmSearch: dm-0{{evt}}-search.{{domain}}
+dmSearchIp: 192.168.3.10{{evt}}
+
+# Protection Policies
+dmPolicyLfs: site{{evt}}-lfs-protection
+dmPolicySql: site{{evt}}-sql-protection
+dmPolicyVms: site{{evt}}-vms-protection
+dmPolicyWfs: site{{evt}}-wfs-protection
+
+# PowerProtect Agents
+dmAgents: /var/lib/awx/projects/artifacts
+dmAgentLfs: fsagent1922_linux_x86_64.tar.gz
+dmAgentSql: emcmsappagent-{{dmVersion}}.exe
+dmAgentWfs: fsagent-{{dmVersion}}.exe
+
+# PowerProtect Data Domain
+ddHost: dd-0{{evt}}.{{domain}}

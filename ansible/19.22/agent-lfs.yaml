@@ -1,0 +1,38 @@
+---
+- name: Deploy File System agents for linux
+  hosts: "{{ ansible_play_batch }}"
+  collections:
+    - community.general
+  gather_facts: false
+  become: no
+
+  vars:
+    anMsgTitle: "( Ansible : v2.6 )"
+    anMsgContent:
+      - "Copying agent {{dmAgentLfs}} to the linux hosts"
+      - "Untar and install the agent"
+      - "Clean up the agent binary and installer directory"
+  vars_files:
+    - vars/environment.yaml
+
+  tasks:  
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.copy:
+      src: "{{dmAgents}}/{{dmAgentLfs}}"
+      dest: /tmp
+    register: push
+  
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[1] }}"
+    shell: |
+      cd /tmp
+      tar -xvf {{dmAgentLfs}}
+      cd /tmp/fsagent
+      ./install.sh --silent-install --server={{ dmHost }} --skip-driver --scriptsEnabled=True
+    register: install
+  
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[2] }}"
+    shell: |
+      cd /tmp
+      rm {{ dmAgentLfs }}
+      rm -r fsagent
+    register: clean

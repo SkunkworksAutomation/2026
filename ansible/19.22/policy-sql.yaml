@@ -1,0 +1,290 @@
+---
+- name: "Create a Microsoft SQL database protection policy and rule"
+  hosts: localhost
+  collections:
+    - community.general
+  gather_facts: false
+
+  # Playbook variables
+  vars:
+    anMsgTitle: "( Ansible : v2.6 )"
+    anMsgContent:
+      - "set_fact content"
+    dmMsgTitle: "( {{dmHost}} : v{{dmVersion}} )"
+    dmMsgContent:
+      - "Wait for HTTPS connectivity on port {{dmPort}}"
+      - "Login to Data Manager REST API"
+      - "Query for the protection storage"
+      - "Create the protection policy credentials"
+      - "Create the protection policy"
+      - "Create the protection rule"
+      - "Logout out of the Data Manager REST API"
+  vars_files:
+    - vars/vault.yaml
+    - vars/environment.yaml
+
+  tasks:
+  # Check for connectivity
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[0] }}"
+    wait_for:
+      host: "{{dmHost}}"
+      port: "{{dmPort}}"
+      state: started
+      delay: 1
+      sleep: 60
+      timeout: 600
+  
+  # Authenticate to the REST API
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[1] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      method: POST
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      body:
+        username: "{{dmUser}}"
+        password: "{{dmPassword}}"
+      status_code: 200
+    vars:
+      endpoint: login
+      version: 2
+    register: token
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      apiToken: "{{ token.json.access_token }}"
+
+  # START THE WORKFLOW
+  # REST API query
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[2] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}?filter={{filter}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: GET
+      validate_certs: no
+      return_content: yes
+      body_format: json
+    vars:
+      endpoint: storage-systems
+      version: 2
+      filters: 
+        - type eq "DATA_DOMAIN_SYSTEM"
+        - and name eq "{{ ddHost }}"
+      filter: "{{ filters | join(' ') | urlencode() }}"
+    register: ddSystems
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      ddSystem: "{{ ddSystems.json.content[0] }}"
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      guid_1: "{{ lookup( 'password', '/dev/null length=32' ) | to_uuid }}"
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      guid_2: "{{ lookup( 'password', '/dev/null length=32' ) | to_uuid }}"
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      guid_3: "{{ lookup( 'password', '/dev/null length=32' ) | to_uuid }}"
+
+  # Ansible set_fact
+  - name: "{{ anMsgTitle }}: {{ anMsgContent[0] }}"
+    ansible.builtin.set_fact:
+      guid_4: "{{ lookup( 'password', '/dev/null length=32' ) | to_uuid }}"
+
+  # Create a set of OS credentials
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[3] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: POST
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      body:
+        type: OS
+        name: MSSQL
+        username: "{{ wsAdmin }}"
+        password: "{{ wsPassword }}"
+        method: BASIC
+      status_code: 201 
+    vars:
+      endpoint: credentials
+      version: 2
+    register: osCreds
+
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[4] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: POST
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      body:
+        name: "{{ dmPolicySql }}"
+        description: ""
+        purpose: CENTRALIZED
+        assetType: MICROSOFT_SQL_DATABASE
+        disabled: false
+        objectives:
+        - id: "{{ guid_1 }}"
+          type: BACKUP
+          operations:
+          - id: "{{ guid_2 }}"
+            backupLevel: FULL
+            schedule:
+              recurrence:
+                pattern:
+                  type: DAILY
+              window:
+                startTime: 2025-09-22T01:00:00.0000000Z
+                duration: PT10H
+            triggerType: ON_SCHEDULE
+          - id: "{{ guid_3 }}"
+            backupLevel: DIFFERENTIAL
+            schedule:
+              recurrence:
+                pattern:
+                  type: HOURLY
+                  interval: 12
+              window:
+                startTime: 2025-09-22T01:00:00.0000000Z
+                duration: PT10H
+            triggerType: ON_SCHEDULE
+          - id: '{{ guid_4 }}'
+            backupLevel: LOG
+            schedule:
+              recurrence:
+                pattern:
+                  type: HOURLY
+                  interval: 4
+              window:
+                startTime: 2025-09-22T01:00:00.0000000Z
+                duration: PT10H
+            triggerType: ON_SCHEDULE
+          target:
+            storageTargetId: null
+            preferredInterfaceId: ethV1
+            storageContainerId: '{{ ddSystem.id }}'
+          retentions:
+          - id: "{{ lookup( 'password', '/dev/null length=32' ) | to_uuid }}"
+            time:
+            - unitValue: 7
+              unitType: DAY
+              type: RETENTION
+            copySelector:
+              operationId: '{{ guid_2 }}'
+          - id: "{{ lookup( 'password', '/dev/null length=32' ) | to_uuid }}"
+            time:
+            - unitValue: 7
+              unitType: DAY
+              type: RETENTION
+            copySelector:
+              operationId: '{{ guid_3 }}'
+          - id: "{{ lookup( 'password', '/dev/null length=32' ) | to_uuid }}"
+            time:
+            - unitValue: 7
+              unitType: DAY
+              type: RETENTION
+            copySelector:
+              operationId: '{{ guid_4 }}'
+          - id: "{{ lookup( 'password', '/dev/null length=32' ) | to_uuid }}"
+            time:
+            - unitValue: 7
+              unitType: DAY
+              type: RETENTION
+          config:
+            dataConsistency: APPLICATION_CONSISTENT
+            forceFull: false
+            connectionsDetails:
+            - credentialId: "{{ osCreds.json.id }}"
+              type: OS
+          options:
+            debugEnabled: false
+            excludeSystemDatabase: false
+            autoPromote: false
+            skipUnprotectableState: false
+            skipSimpleDatabase: false
+            promotionType: ALL
+      status_code: 201 
+    vars:
+      endpoint: protection-policies
+      version: 3
+    register: policy
+
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[5] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: POST
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      body:
+        name: "{{ dmPolicySql }}"
+        description: ""
+        action: MOVE_TO_GROUP
+        actionResult: "{{ policy.json.id }}"
+        inventorySourceType: MICROSOFT_SQL_DATABASE
+        category: COMPOUND
+        rules:
+          - name: sub1_{{dmPolicySql}}
+            description: 
+            action: 
+            actionResult: 
+            category: PRIMITIVE
+            inventorySourceType: 
+            conditionConnector: AND
+            logicalOperator: AND
+            conditions:
+              - assetAttributeName: applicationSystemRef.applicationClusterDetail.type
+                operator: EQUALS
+                assetAttributeValue: ""
+                assetAttributeValues:
+                  - STANDALONE
+            priority: 
+        conditionConnector: OR
+        logicalOperator: OR
+        conditions: 
+        priority: -1
+        tenant:
+          id: 00000000-0000-4000-a000-000000000000
+      status_code: 201 
+    vars:
+      endpoint: protection-rules
+      version: 2
+    register: rule
+  # END THE WORKFLOW
+
+  # Log out of the REST API
+  - name: "{{ dmMsgTitle }}: {{ dmMsgContent[-1] }}"
+    uri:
+      url: "{{dmBaseUrl}}/v{{version}}/{{endpoint}}"
+      headers:
+        Authorization: "Bearer {{apiToken}}"
+        Content-Type: "application/json"
+      method: POST
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      status_code: 204
+    vars:
+      endpoint: logout
+      version: 2
