@@ -17,7 +17,7 @@
   vars_files:
   
   tasks:
-  # Wait  for a response from PowerProtect DD on port 443  
+  # Wait for a response from PowerProtect DD on port 443  
   - name: "[ {{fqdn}} ]: Waiting for HTTPS connectivity"
     wait_for:
       host: "{{fqdn}}"
