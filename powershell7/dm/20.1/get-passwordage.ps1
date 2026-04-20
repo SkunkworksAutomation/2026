@@ -2,11 +2,11 @@
 # Data Manager Servers
 $dms = @(
     @{
-        name = "10.239.100.131"
+        name = "192.168.xxx.xxx"
     }
 )
 # Report
-$ReportName = "Password Experation Report"
+$ReportName = "Password Aging Report"
 $ReportOutPath = ".\"
 $ReportOutFile = "$($ReportOutPath)\$((Get-Date).
     ToString("yyy-MM-dd"))_$($ReportName).csv"
@@ -554,11 +554,16 @@ foreach($dm in $dms){
     -Version 3
 
     foreach($row in $query1) {
+        $changed = get-date($row.lastPasswordChangeTimestamp).tolocaltime()
+        $today =  Get-Date
+        $timespan = New-TimeSpan -Start $changed -End $today
+
         $object = [ordered]@{
             accountName = $row.accountName
             enabled = $row.enabled
             locked = $row.locked
             lastPasswordChangeTimestamp = $row.lastPasswordChangeTimestamp
+            agePassword = '{0:dd}d:{0:hh}h:{0:mm}m:{0:ss}s' -f $timespan
         }
 
         $report += (New-Object -TypeName psobject -Property $object)
