@@ -1,0 +1,97 @@
+---
+- name: "Example connecting to PowerProtect DD"
+  hosts: localhost
+  collections:
+    - community.general
+  gather_facts: false
+
+  # Playbook variables
+  vars:
+    fqdn: dd-01.vcorp.local
+    ddPort: 3009
+    ddUrl: "https://{{fqdn}}:{{ddPort}}"
+    ddUser: sysadmin
+    ddPassword: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      ...
+  vars_files:
+  
+  tasks:
+  # Wait  for a response from PowerProtect DD on port 443  
+  - name: "[ {{fqdn}} ]: Waiting for HTTPS connectivity"
+    wait_for:
+      host: "{{fqdn}}"
+      port: 443
+      state: started
+      delay: 1
+      sleep: 60
+      timeout: 600
+    register: wait
+
+  # Logon to the REST API
+  - name: "[ {{fqdn}} ]: Logon to the REST API"
+    uri:
+      url: "{{ddUrl}}/{{endpoint}}"
+      method: POST
+      force_basic_auth: no
+      validate_certs: no
+      return_content: yes
+      body_format: json
+      body:
+        username: "{{ddUser}}"
+        password: "{{ddPassword}}"
+      status_code: 201
+    vars:
+      endpoint: rest/v1.0/auth
+    register: ddToken
+
+  - name: PowerProtect DD authentication token
+    debug:
+      var: ddToken.x_dd_auth_token
+
+# Begin your automation workflow tasks
+
+  # Query for the system information
+  - name: "[ {{fqdn}} ]: Get system information"
+    uri:
+      url: "{{ddUrl}}/{{endpoint}}"
+      method: GET
+      headers:
+        X-DD-AUTH-TOKEN: "{{ddToken.x_dd_auth_token}}"
+        Content-Type: "application/json"
+      force_basic_auth: no
+      validate_certs: no
+      body_format: json
+      timeout: 600
+      return_content: yes
+      status_code: 200
+    vars:
+      endpoint: rest/v3.0/dd-systems/0/systems
+    register: system
+
+  - name: "[ {{fqdn}} ]: Return a partial response"
+    debug:
+      msg: >
+        {{ system.json | json_query(query) }}
+    vars:
+      query: "{name:name,type:type,version:version,serialno:serialno,model:model,uptime:uptime}"
+      
+# End your automation workflow tasks
+
+  # Logout of the REST API
+  - name: "[ {{fqdn}} ]: Logout of the REST API"
+    uri:
+      url: "{{ddUrl}}/{{endpoint}}"
+      method: DELETE
+      headers:
+        X-DD-AUTH-TOKEN: "{{ddToken.x_dd_auth_token}}"
+        Content-Type: "application/json"
+      force_basic_auth: no
+      validate_certs: no
+      body_format: json
+      timeout: 600
+      return_content: yes
+      status_code: 200
+    vars:
+      endpoint: rest/v1.0/auth
+    register: logout
