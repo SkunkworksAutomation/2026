@@ -13,7 +13,7 @@
     ddUser: sysadmin
     ddPassword: !vault |
       $ANSIBLE_VAULT;1.1;AES256
-      ...
+      <encrypted-in-ansible-vault>
   vars_files:
   
   tasks:
