@@ -547,7 +547,7 @@ foreach($dm in $dms){
     -Port 8443 `
     -Version 2
 
-    # Get the backup job activities
+    # Get the local accounts
     $endpoint = "local-identity-providers/default/auth-entries"
     $query1 = get-dm `
     -Endpoint "$($endpoint)" `
